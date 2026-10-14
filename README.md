@@ -2,7 +2,7 @@
 
 A question card game for two partners. Both of you answer every card, and the questions go deeper as you move through three levels.
 
-Play it at **https://yourusername.github.io/closer**
+Play it at **https://runic-wolfe-games.github.io/closer-card-game/**
 
 ## How to play
 
