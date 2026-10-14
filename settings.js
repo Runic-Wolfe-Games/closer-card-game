@@ -42,11 +42,16 @@ const RESPONSES = [
   { title: "Name a reach", text: "Describe a recent moment you reached for them, and how it went." }
 ];
 
+/*
+  Wildcards. Two optional extras:
+    refersBack: true   shows the last question drawn, for cards like "Go deeper"
+    action: "pick"     adds a button to choose any question from any level
+*/
 const WILDCARDS = [
-  { title: "Go deeper", text: "Answer your last card again, with the part you held back." },
-  { title: "Your pick", text: "The reader chooses any question from any level for their partner to answer." },
+  { title: "Go deeper", text: "Answer your last card again, with the part you held back.", refersBack: true },
+  { title: "Your pick", text: "Choose any question from any level for your partner to answer.", action: "pick" },
   { title: "Quiet minute", text: "Sit close for one minute without talking, if you both want to." },
-  { title: "Swap", text: "Answer your partner's last card as if you were them. They tell you what you got right." }
+  { title: "Swap", text: "Answer your partner's last card as if you were them. They tell you what you got right.", refersBack: true }
 ];
 
 const CLOSING = "Each of you writes two sentences: one beginning \u201cTonight I learned...\u201d and one beginning \u201cI hope...\u201d Trade them, and read them only once you're apart.";

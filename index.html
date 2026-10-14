@@ -58,8 +58,15 @@
     <article id="card" class="card" aria-live="polite">
       <p id="card-kind"></p>
       <p id="card-text"></p>
+      <button id="pick-btn" class="pick-btn" hidden>Choose a card</button>
       <p id="card-note"></p>
     </article>
+
+    <div class="card-nav">
+      <button id="prev" class="text-btn">Previous</button>
+      <span id="position" class="muted"></span>
+      <button id="later" class="text-btn">Later</button>
+    </div>
 
     <p id="turn"></p>
 
@@ -101,6 +108,14 @@
   </div>
 </dialog>
 
+<dialog id="picker" aria-labelledby="picker-title">
+  <h2 id="picker-title">Choose a card</h2>
+  <p>Pick any question for your partner to answer.</p>
+  <div class="segments" id="picker-levels" role="group" aria-label="Level"></div>
+  <div class="choice-list picker-list" id="picker-list"></div>
+  <button class="primary" data-close>Back to the wildcard</button>
+</dialog>
+
 <dialog id="pass" aria-labelledby="pass-title">
   <h2 id="pass-title">Who's passing?</h2>
   <p>No reason needed. The card goes to the bottom of the deck and may come back another night.</p>
@@ -131,10 +146,11 @@
 
 <script src="settings.js"></script>
 <script>
-const STORE = "closer-session-v1";
+const STORE = "closer-session-v2";
 const $ = (s) => document.querySelector(s);
 let state = null;
 let pauseTimer = null;
+let pickerLevel = 0;
 
 function shuffle(list) {
   const a = list.slice();
@@ -146,10 +162,10 @@ function shuffle(list) {
 }
 
 function buildDeck(level) {
-  const deck = shuffle(CARDS[level]).map((text) => ({ type: "q", text }));
+  const deck = shuffle(CARDS[level]).map((text) => ({ type: "q", text, level }));
   for (const w of WILDCARDS) {
     const pos = 2 + Math.floor(Math.random() * (deck.length - 1));
-    deck.splice(pos, 0, { type: "wild", title: w.title, text: w.text });
+    deck.splice(pos, 0, Object.assign({ type: "wild" }, w));
   }
   return deck;
 }
@@ -178,10 +194,35 @@ function names() {
   return [a, b];
 }
 
+/* Game state
+   history holds every card drawn in this level, in order: { card, drawer }.
+   pos is the card on screen. When pos is the last entry, you're at the current card. */
+
 function startGame(level) {
-  state = { names: names(), level, deck: buildDeck(level), current: null, drawer: 0, drawn: 0, passes: [2, 2], screen: "intro" };
+  state = {
+    names: names(), level, deck: buildDeck(level),
+    history: [], pos: -1, carryDrawer: null,
+    passes: [2, 2], screen: "intro"
+  };
   save();
   showIntro();
+}
+
+function current() { return state.history[state.pos]; }
+function atLatest() { return state.pos === state.history.length - 1; }
+
+function nextDrawer() {
+  const last = state.history[state.history.length - 1];
+  if (last) return 1 - last.drawer;
+  return state.carryDrawer === null ? 0 : 1 - state.carryDrawer;
+}
+
+function lastQuestionBefore(index) {
+  for (let i = index - 1; i >= 0; i--) {
+    const c = state.history[i].card;
+    if (c.type === "q") return c.text;
+  }
+  return null;
 }
 
 function showIntro() {
@@ -197,13 +238,47 @@ function showIntro() {
   $("#intro-go").focus();
 }
 
-function draw(advanceTurn) {
-  if (state.current && advanceTurn) state.drawer = 1 - state.drawer;
-  state.current = state.deck.length ? state.deck.shift() : null;
-  if (state.current) state.drawn += 1;
+function draw() {
+  if (state.history.length && !atLatest()) {
+    state.pos = state.history.length - 1;
+    save();
+    renderPlay(true);
+    return;
+  }
+  const drawer = nextDrawer();
+  const card = state.deck.shift() || { type: "end" };
+  state.history.push({ card, drawer });
+  state.pos = state.history.length - 1;
   state.screen = "play";
   save();
   renderPlay(true);
+}
+
+function step(delta) {
+  const p = state.pos + delta;
+  if (p < 0 || p > state.history.length - 1) return;
+  state.pos = p;
+  save();
+  renderPlay(true);
+}
+
+function passCard(player) {
+  const entry = state.history[state.history.length - 1];
+  state.passes[player] -= 1;
+  if (!entry.card.picked) state.deck.push(entry.card);
+  entry.card = state.deck.shift() || { type: "end" };
+  save();
+  renderPlay(true);
+}
+
+function setTurn(parts) {
+  const el = $("#turn");
+  el.textContent = "";
+  for (const [text, bold] of parts) {
+    const node = document.createElement(bold ? "b" : "span");
+    node.textContent = text;
+    el.appendChild(node);
+  }
 }
 
 function renderPlay(animate) {
@@ -212,42 +287,58 @@ function renderPlay(animate) {
   show("screen-play");
   $("#play-level").textContent = "Level " + (state.level + 1) + ": " + lv.name;
 
-  const card = $("#card");
-  const c = state.current;
-  const reader = state.names[state.drawer];
-  const other = state.names[1 - state.drawer];
+  const entry = current();
+  const c = entry.card;
+  const latest = atLatest();
+  const reader = state.names[entry.drawer];
+  const other = state.names[1 - entry.drawer];
+  let kind = "", text = "", note = "", turn = [];
+  $("#pick-btn").hidden = true;
 
-  if (!c) {
-    $("#card-kind").textContent = "";
-    $("#card-text").textContent = "You've drawn every card in this level.";
-    $("#card-note").textContent = state.level < 2 ? "Move up when you're both ready, or stop here for tonight." : "Finish with the closing card when you're ready.";
-    $("#turn").textContent = "";
-    $("#next").disabled = true;
-    $("#pass-btn").disabled = true;
+  if (c.type === "end") {
+    text = "You've drawn every card in this level.";
+    note = state.level < 2
+      ? "Move up when you're both ready, or stop here for tonight."
+      : "Finish with the closing card when you're ready.";
   } else if (c.type === "wild") {
-    $("#card-kind").textContent = "Wildcard: " + c.title;
-    $("#card-text").textContent = c.text;
-    $("#card-note").textContent = "";
-    $("#turn").innerHTML = "<b></b> drew a wildcard.";
-    $("#turn b").textContent = reader;
-    $("#next").disabled = false;
-    $("#pass-btn").disabled = false;
+    kind = "Wildcard: " + c.title;
+    text = c.text;
+    if (c.refersBack) {
+      const prev = lastQuestionBefore(state.pos);
+      if (prev) note = "Last card: \u201c" + prev + "\u201d";
+    }
+    if (c.action === "pick" && latest) $("#pick-btn").hidden = false;
+    turn = [[reader, true], [" drew a wildcard."]];
   } else {
-    $("#card-kind").textContent = "";
-    $("#card-text").textContent = c.text;
-    $("#card-note").textContent = c.text.startsWith("Guess") ? "After the guess, say what was right and what wasn't." : "";
-    $("#turn").innerHTML = "<b class='r'></b> reads aloud. <b class='o'></b> answers first, then <span class='r2'></span>.";
-    $("#turn .r").textContent = reader;
-    $("#turn .o").textContent = other;
-    $("#turn .r2").textContent = reader;
-    $("#next").disabled = false;
-    $("#pass-btn").disabled = false;
+    text = c.text;
+    if (c.picked) {
+      kind = c.level === state.level ? "Chosen card" : "Chosen card, from Level " + (c.level + 1);
+      turn = [[reader, true], [" chose this one for "], [other, true], ["."]];
+    } else {
+      turn = [[reader, true], [" reads aloud. "], [other, true], [" answers first, then " + reader + "."]];
+    }
+    if (c.text.startsWith("Guess")) note = "After the guess, say what was right and what wasn't.";
   }
 
-  $("#count").textContent = state.drawn + " drawn, " + state.deck.length + " left";
+  $("#card-kind").textContent = kind;
+  $("#card-text").textContent = text;
+  $("#card-note").textContent = note;
+  setTurn(turn);
+
+  const n = state.history.length;
+  $("#position").textContent = latest ? "Card " + n : "Looking back: card " + (state.pos + 1) + " of " + n;
+  $("#prev").disabled = state.pos <= 0;
+  $("#later").disabled = latest;
+
+  $("#next").textContent = latest ? "Next card" : "Back to current card";
+  $("#next").disabled = latest && c.type === "end";
+  $("#pass-btn").disabled = !latest || c.type === "end";
+
+  $("#count").textContent = state.deck.length === 1 ? "1 card left in this level" : state.deck.length + " cards left in this level";
   $("#deeper").textContent = state.level < 2 ? "Move to Level " + (state.level + 2) : "Finish with the closing card";
 
   if (animate) {
+    const card = $("#card");
     card.classList.remove("enter");
     void card.offsetWidth;
     card.classList.add("enter");
@@ -258,10 +349,12 @@ function goDeeper() {
   if (state.level < 2) {
     const ok = confirm("Move to Level " + (state.level + 2) + "? Go deeper when you both feel ready.");
     if (!ok) return;
+    const last = state.history[state.history.length - 1];
+    if (last) state.carryDrawer = last.drawer;
     state.level += 1;
     state.deck = buildDeck(state.level);
-    state.current = null;
-    state.drawn = 0;
+    state.history = [];
+    state.pos = -1;
     showIntro();
   } else {
     showClose();
@@ -281,7 +374,7 @@ function resume(saved) {
   $("#name-a").value = state.names[0];
   $("#name-b").value = state.names[1];
   if (state.screen === "close") showClose();
-  else if (state.screen === "play" && state.current) renderPlay(true);
+  else if (state.screen === "play" && state.history.length) renderPlay(true);
   else showIntro();
 }
 
@@ -323,6 +416,62 @@ async function loadQuestions() {
   }
 }
 
+/* Choosing a card (the "Your pick" wildcard) */
+function openPicker() {
+  pickerLevel = state.level;
+  renderPicker();
+  $("#picker").showModal();
+}
+
+function renderPicker() {
+  const seg = $("#picker-levels");
+  seg.textContent = "";
+  LEVELS.forEach((lv, i) => {
+    const b = document.createElement("button");
+    b.className = "segment";
+    b.textContent = lv.name;
+    b.setAttribute("aria-pressed", String(i === pickerLevel));
+    b.addEventListener("click", () => { pickerLevel = i; renderPicker(); });
+    seg.appendChild(b);
+  });
+
+  const played = new Set(
+    state.history.filter((h) => h.card.type === "q" && h.card.level === pickerLevel).map((h) => h.card.text)
+  );
+  const list = $("#picker-list");
+  list.textContent = "";
+  CARDS[pickerLevel].forEach((text) => {
+    const b = document.createElement("button");
+    b.className = "choice";
+    const t = document.createElement("span");
+    t.className = "q";
+    t.textContent = text;
+    b.appendChild(t);
+    if (played.has(text)) {
+      const tag = document.createElement("span");
+      tag.className = "played";
+      tag.textContent = "Already played";
+      b.appendChild(tag);
+    }
+    b.addEventListener("click", () => pickCard(pickerLevel, text));
+    list.appendChild(b);
+  });
+  list.scrollTop = 0;
+}
+
+function pickCard(level, text) {
+  const wild = current();
+  if (level === state.level) {
+    const i = state.deck.findIndex((c) => c.type === "q" && c.text === text);
+    if (i >= 0) state.deck.splice(i, 1);
+  }
+  state.history.push({ card: { type: "q", text, level, picked: true }, drawer: wild.drawer });
+  state.pos = state.history.length - 1;
+  $("#picker").close();
+  save();
+  renderPlay(true);
+}
+
 /* Dialogs */
 function openDialog(id) {
   const d = document.getElementById(id);
@@ -355,7 +504,7 @@ function buildRespondChoices() {
 
 function buildPassChoices() {
   const wrap = $("#pass-choices");
-  wrap.innerHTML = "";
+  wrap.textContent = "";
   state.names.forEach((n, i) => {
     const b = document.createElement("button");
     b.className = "choice";
@@ -365,11 +514,8 @@ function buildPassChoices() {
     b.querySelector("span").textContent = left === 1 ? "1 pass left" : left + " passes left";
     b.disabled = left < 1;
     b.addEventListener("click", () => {
-      state.passes[i] -= 1;
-      if (state.current) state.deck.push(state.current);
-      state.drawn -= 1;
       $("#pass").close();
-      draw(false);
+      passCard(i);
     });
     wrap.appendChild(b);
   });
@@ -401,8 +547,11 @@ document.querySelectorAll("[data-close]").forEach((b) =>
 );
 $("#pause").addEventListener("close", () => clearInterval(pauseTimer));
 
-$("#intro-go").addEventListener("click", () => draw(false));
-$("#next").addEventListener("click", () => draw(true));
+$("#intro-go").addEventListener("click", draw);
+$("#next").addEventListener("click", draw);
+$("#prev").addEventListener("click", () => step(-1));
+$("#later").addEventListener("click", () => step(1));
+$("#pick-btn").addEventListener("click", openPicker);
 $("#respond-btn").addEventListener("click", () => openDialog("respond"));
 $("#pass-btn").addEventListener("click", () => openDialog("pass"));
 $("#deeper").addEventListener("click", goDeeper);
