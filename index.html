@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Closer</title>
+<meta name="description" content="A question deck for two partners. Both of you answer every card.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='14' y='8' width='72' height='84' rx='12' fill='%234A2B4E'/><rect x='24' y='20' width='52' height='60' rx='8' fill='%23DCE5DA'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-level="0">
+<main>
+
+  <section id="screen-start">
+    <h1>Closer</h1>
+    <p class="lede">A question deck for two partners. Both of you answer every card, and the questions go deeper as you do.</p>
+
+    <button id="resume" class="primary" hidden>Continue your last game</button>
+
+    <div class="names">
+      <label>First player<input id="name-a" autocomplete="off" placeholder="Name"></label>
+      <label>Second player<input id="name-b" autocomplete="off" placeholder="Name"></label>
+    </div>
+
+    <div class="depth" role="group" aria-label="Choose a level to begin">
+      <button class="band band-1" data-start="0"><span class="num">1</span><strong>Noticing</strong><span class="blurb">Tastes, routines, small worries, small pride.</span></button>
+      <button class="band band-2" data-start="1"><span class="num">2</span><strong>Inner World</strong><span class="blurb">History, values, fears, quiet dreams.</span></button>
+      <button class="band band-3" data-start="2"><span class="num">3</span><strong>Between Us</strong><span class="blurb">What's working, what's missed, what you're building.</span></button>
+    </div>
+    <p class="depth-hint muted" id="depth-hint">Loading the questions...</p>
+    <p id="load-error" class="load-error" role="alert" hidden></p>
+
+    <div class="start-foot">
+      <button class="text-btn" data-open="rules">How to play</button>
+    </div>
+  </section>
+
+  <section id="screen-intro" hidden>
+    <div id="intro-num" aria-hidden="true">1</div>
+    <h1 id="intro-name">Noticing</h1>
+    <p id="intro-blurb"></p>
+    <p id="intro-note"></p>
+    <button id="intro-go" class="primary">Draw the first card</button>
+  </section>
+
+  <section id="screen-play" hidden>
+    <div class="topbar">
+      <h2 id="play-level">Level 1: Noticing</h2>
+      <nav>
+        <button data-open="pause">Pause</button>
+        <button data-open="rules">Rules</button>
+      </nav>
+    </div>
+
+    <article id="card" class="card" aria-live="polite">
+      <p id="card-kind"></p>
+      <p id="card-text"></p>
+      <p id="card-note"></p>
+    </article>
+
+    <p id="turn"></p>
+
+    <div class="actions">
+      <button id="next" class="primary">Next card</button>
+      <div class="row">
+        <button id="respond-btn" class="secondary">Respond</button>
+        <button id="pass-btn" class="secondary">Pass</button>
+      </div>
+    </div>
+
+    <div class="play-foot">
+      <span id="count" class="muted"></span>
+      <button id="deeper" class="text-btn">Move to Level 2</button>
+    </div>
+  </section>
+
+  <section id="screen-close" hidden>
+    <h1 style="font-size:2.4rem">Leave something behind</h1>
+    <article class="card">
+      <p id="close-text" style="font-family:var(--serif);font-size:1.5rem;line-height:1.4"></p>
+    </article>
+    <button id="restart" class="primary">Start a new game</button>
+  </section>
+
+</main>
+
+<dialog id="respond" aria-labelledby="respond-title">
+  <div id="respond-list">
+    <h2 id="respond-title">Respond</h2>
+    <p>Choose one to play after an answer that mattered.</p>
+    <div class="choice-list" id="respond-choices"></div>
+    <button class="primary" data-close>Back to the card</button>
+  </div>
+  <div id="respond-detail" hidden>
+    <h2 id="respond-name"></h2>
+    <p id="respond-text"></p>
+    <button class="primary" data-close>Done</button>
+  </div>
+</dialog>
+
+<dialog id="pass" aria-labelledby="pass-title">
+  <h2 id="pass-title">Who's passing?</h2>
+  <p>No reason needed. The card goes to the bottom of the deck and may come back another night.</p>
+  <div class="choice-list" id="pass-choices"></div>
+  <button class="primary" data-close>Keep the card</button>
+</dialog>
+
+<dialog id="pause" aria-labelledby="pause-title">
+  <h2 id="pause-title">Taking a break</h2>
+  <p>Spend at least 20 minutes apart doing something calming. Come back when you can both take in what's being said.</p>
+  <div id="pause-clock">20:00</div>
+  <button class="primary" data-close>Return to the game</button>
+</dialog>
+
+<dialog id="rules" aria-labelledby="rules-title">
+  <h2 id="rules-title">How to play</h2>
+  <ol>
+    <li>Take turns drawing. The drawer reads the card aloud. The other person answers first, then the drawer answers the same card.</li>
+    <li>Listen to understand. No fixing, no correcting, no debating each other's memory of events.</li>
+    <li>Move up a level when you both feel ready. Eight to twelve cards per level makes a good sitting.</li>
+    <li>Each player has two passes. A pass needs no explanation.</li>
+    <li>Play a Response card after an answer that landed hard or mattered.</li>
+    <li>If either of you feels flooded, pause for at least 20 minutes.</li>
+  </ol>
+  <p style="margin-top:0.9rem">Play when you're both rested and not mid-conflict. The deck is for understanding each other, not settling disputes.</p>
+  <button class="primary" data-close>Got it</button>
+</dialog>
+
+<script src="settings.js"></script>
+<script>
+const STORE = "closer-session-v1";
+const $ = (s) => document.querySelector(s);
+let state = null;
+let pauseTimer = null;
+
+function shuffle(list) {
+  const a = list.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildDeck(level) {
+  const deck = shuffle(CARDS[level]).map((text) => ({ type: "q", text }));
+  for (const w of WILDCARDS) {
+    const pos = 2 + Math.floor(Math.random() * (deck.length - 1));
+    deck.splice(pos, 0, { type: "wild", title: w.title, text: w.text });
+  }
+  return deck;
+}
+
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {}
+}
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function clearSaved() {
+  try { localStorage.removeItem(STORE); } catch (e) {}
+}
+
+function show(id) {
+  for (const s of document.querySelectorAll("main > section")) s.hidden = s.id !== id;
+  window.scrollTo(0, 0);
+}
+
+function names() {
+  const a = $("#name-a").value.trim() || "First player";
+  const b = $("#name-b").value.trim() || "Second player";
+  return [a, b];
+}
+
+function startGame(level) {
+  state = { names: names(), level, deck: buildDeck(level), current: null, drawer: 0, drawn: 0, passes: [2, 2], screen: "intro" };
+  save();
+  showIntro();
+}
+
+function showIntro() {
+  const lv = LEVELS[state.level];
+  document.body.dataset.level = String(state.level + 1);
+  $("#intro-num").textContent = state.level + 1;
+  $("#intro-name").textContent = lv.name;
+  $("#intro-blurb").textContent = lv.blurb;
+  $("#intro-note").textContent = lv.note;
+  state.screen = "intro";
+  save();
+  show("screen-intro");
+  $("#intro-go").focus();
+}
+
+function draw(advanceTurn) {
+  if (state.current && advanceTurn) state.drawer = 1 - state.drawer;
+  state.current = state.deck.length ? state.deck.shift() : null;
+  if (state.current) state.drawn += 1;
+  state.screen = "play";
+  save();
+  renderPlay(true);
+}
+
+function renderPlay(animate) {
+  const lv = LEVELS[state.level];
+  document.body.dataset.level = String(state.level + 1);
+  show("screen-play");
+  $("#play-level").textContent = "Level " + (state.level + 1) + ": " + lv.name;
+
+  const card = $("#card");
+  const c = state.current;
+  const reader = state.names[state.drawer];
+  const other = state.names[1 - state.drawer];
+
+  if (!c) {
+    $("#card-kind").textContent = "";
+    $("#card-text").textContent = "You've drawn every card in this level.";
+    $("#card-note").textContent = state.level < 2 ? "Move up when you're both ready, or stop here for tonight." : "Finish with the closing card when you're ready.";
+    $("#turn").textContent = "";
+    $("#next").disabled = true;
+    $("#pass-btn").disabled = true;
+  } else if (c.type === "wild") {
+    $("#card-kind").textContent = "Wildcard: " + c.title;
+    $("#card-text").textContent = c.text;
+    $("#card-note").textContent = "";
+    $("#turn").innerHTML = "<b></b> drew a wildcard.";
+    $("#turn b").textContent = reader;
+    $("#next").disabled = false;
+    $("#pass-btn").disabled = false;
+  } else {
+    $("#card-kind").textContent = "";
+    $("#card-text").textContent = c.text;
+    $("#card-note").textContent = c.text.startsWith("Guess") ? "After the guess, say what was right and what wasn't." : "";
+    $("#turn").innerHTML = "<b class='r'></b> reads aloud. <b class='o'></b> answers first, then <span class='r2'></span>.";
+    $("#turn .r").textContent = reader;
+    $("#turn .o").textContent = other;
+    $("#turn .r2").textContent = reader;
+    $("#next").disabled = false;
+    $("#pass-btn").disabled = false;
+  }
+
+  $("#count").textContent = state.drawn + " drawn, " + state.deck.length + " left";
+  $("#deeper").textContent = state.level < 2 ? "Move to Level " + (state.level + 2) : "Finish with the closing card";
+
+  if (animate) {
+    card.classList.remove("enter");
+    void card.offsetWidth;
+    card.classList.add("enter");
+  }
+}
+
+function goDeeper() {
+  if (state.level < 2) {
+    const ok = confirm("Move to Level " + (state.level + 2) + "? Go deeper when you both feel ready.");
+    if (!ok) return;
+    state.level += 1;
+    state.deck = buildDeck(state.level);
+    state.current = null;
+    state.drawn = 0;
+    showIntro();
+  } else {
+    showClose();
+  }
+}
+
+function showClose() {
+  document.body.dataset.level = "3";
+  $("#close-text").textContent = CLOSING;
+  state.screen = "close";
+  save();
+  show("screen-close");
+}
+
+function resume(saved) {
+  state = saved;
+  $("#name-a").value = state.names[0];
+  $("#name-b").value = state.names[1];
+  if (state.screen === "close") showClose();
+  else if (state.screen === "play" && state.current) renderPlay(true);
+  else showIntro();
+}
+
+/* Loading the questions */
+let CARDS = [[], [], []];
+
+function parseQuestions(text) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+}
+
+async function loadQuestions() {
+  const bands = document.querySelectorAll("[data-start]");
+  bands.forEach((b) => (b.disabled = true));
+  try {
+    CARDS = await Promise.all(
+      LEVELS.map(async (lv) => {
+        const res = await fetch(lv.file, { cache: "no-cache" });
+        if (!res.ok) throw new Error(lv.file + " could not be found (" + res.status + ").");
+        const list = parseQuestions(await res.text());
+        if (!list.length) throw new Error(lv.file + " has no questions in it.");
+        return list;
+      })
+    );
+    bands.forEach((b) => (b.disabled = false));
+    $("#depth-hint").textContent = "Tap a level to begin. Most nights start at Level 1.";
+    return true;
+  } catch (err) {
+    const local = location.protocol === "file:";
+    $("#depth-hint").hidden = true;
+    const box = $("#load-error");
+    box.hidden = false;
+    box.textContent = local
+      ? "The questions can't load when this page is opened straight from your computer. Open it on GitHub Pages, or run a local server in this folder."
+      : "The questions didn't load. " + err.message + " Check that the questions folder and its three files are in the repo with their exact names.";
+    return false;
+  }
+}
+
+/* Dialogs */
+function openDialog(id) {
+  const d = document.getElementById(id);
+  if (id === "respond") {
+    $("#respond-list").hidden = false;
+    $("#respond-detail").hidden = true;
+  }
+  if (id === "pass") buildPassChoices();
+  if (id === "pause") startPause();
+  d.showModal();
+}
+
+function buildRespondChoices() {
+  const wrap = $("#respond-choices");
+  RESPONSES.forEach((r) => {
+    const b = document.createElement("button");
+    b.className = "choice";
+    b.innerHTML = "<strong></strong><span></span>";
+    b.querySelector("strong").textContent = r.title;
+    b.querySelector("span").textContent = r.text;
+    b.addEventListener("click", () => {
+      $("#respond-name").textContent = r.title;
+      $("#respond-text").textContent = r.text;
+      $("#respond-list").hidden = true;
+      $("#respond-detail").hidden = false;
+    });
+    wrap.appendChild(b);
+  });
+}
+
+function buildPassChoices() {
+  const wrap = $("#pass-choices");
+  wrap.innerHTML = "";
+  state.names.forEach((n, i) => {
+    const b = document.createElement("button");
+    b.className = "choice";
+    const left = state.passes[i];
+    b.innerHTML = "<strong></strong><span></span>";
+    b.querySelector("strong").textContent = n;
+    b.querySelector("span").textContent = left === 1 ? "1 pass left" : left + " passes left";
+    b.disabled = left < 1;
+    b.addEventListener("click", () => {
+      state.passes[i] -= 1;
+      if (state.current) state.deck.push(state.current);
+      state.drawn -= 1;
+      $("#pass").close();
+      draw(false);
+    });
+    wrap.appendChild(b);
+  });
+}
+
+function startPause() {
+  const end = Date.now() + 20 * 60 * 1000;
+  const tick = () => {
+    const ms = Math.max(0, end - Date.now());
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    $("#pause-clock").textContent = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    if (ms === 0) clearInterval(pauseTimer);
+  };
+  clearInterval(pauseTimer);
+  tick();
+  pauseTimer = setInterval(tick, 1000);
+}
+
+/* Wiring */
+document.querySelectorAll("[data-start]").forEach((b) =>
+  b.addEventListener("click", () => startGame(Number(b.dataset.start)))
+);
+document.querySelectorAll("[data-open]").forEach((b) =>
+  b.addEventListener("click", () => openDialog(b.dataset.open))
+);
+document.querySelectorAll("[data-close]").forEach((b) =>
+  b.addEventListener("click", () => b.closest("dialog").close())
+);
+$("#pause").addEventListener("close", () => clearInterval(pauseTimer));
+
+$("#intro-go").addEventListener("click", () => draw(false));
+$("#next").addEventListener("click", () => draw(true));
+$("#respond-btn").addEventListener("click", () => openDialog("respond"));
+$("#pass-btn").addEventListener("click", () => openDialog("pass"));
+$("#deeper").addEventListener("click", goDeeper);
+$("#restart").addEventListener("click", () => {
+  clearSaved();
+  state = null;
+  document.body.dataset.level = "0";
+  $("#resume").hidden = true;
+  show("screen-start");
+});
+
+buildRespondChoices();
+
+loadQuestions().then((ok) => {
+  if (!ok) return;
+  const saved = loadSaved();
+  if (saved && saved.screen !== "close") {
+    const r = $("#resume");
+    r.hidden = false;
+    r.addEventListener("click", () => resume(saved));
+  }
+});
+</script>
+</body>
+</html>
